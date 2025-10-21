@@ -1,3 +1,11 @@
+---
+name: "WORD"
+about: "Register a English word/collocation to learn"
+title: "<word/collocation here>"
+labels: [learning]
+assignees: []
+---
+
 ### 1. {{1st Concept}}
 Meaning: 
 {{Meaning}}
