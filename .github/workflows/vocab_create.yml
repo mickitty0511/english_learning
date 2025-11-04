@@ -123,9 +123,11 @@ jobs:
 
       # ② スコアレポート生成＋コメント
       - name: Generate Legibility Report
-        run: python3 .github/scripts/collect_legibility.py \
-          --word "${{ steps.parse.outputs.word_display }}" \
-          --slug "${{ steps.parse.outputs.word_slug }}"
+        shell: bash
+        run: >
+          python3 .github/scripts/collect_legibility.py
+          --word "${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}"
+          --slug "${{ steps.parse.outputs.word_slug    || steps.diff.outputs.word_slug }}"
 
       - name: Comment Legibility Report
         uses: actions/github-script@v7
