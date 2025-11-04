@@ -152,8 +152,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const {context, github} = require('@actions/github');
-
             const word = '${{ steps.parse.outputs.word_display }}';
             const slug = '${{ steps.parse.outputs.word_slug }}';
             const headSha = '${{ steps.cpr.outputs.pull-request-head-sha }}' || '${{ github.sha }}';
