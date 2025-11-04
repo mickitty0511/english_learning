@@ -1,7 +1,9 @@
 name: Vocabulary Card - Create
+
 on:
   issues:
     types: [opened]
+
 permissions:
   contents: write
   pull-requests: write
@@ -14,11 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y fonts-dejavu-core
-          python3 -m pip install pillow requests jq
+          sudo apt-get install -y fonts-dejavu-core jq
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow requests
 
       - name: Parse
         id: parse
@@ -30,6 +35,7 @@ jobs:
         env:
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: |
+          set -euo pipefail
           code=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${DASHSCOPE_API_KEY}" \
             -H "X-DashScope-Async: enable" \
@@ -37,7 +43,7 @@ jobs:
             -d '{"model":"qwen-image-plus","input":{"prompt":"probe"},"parameters":{"size":"512*512","n":1}}' \
             https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis)
           echo "DashScope probe: $code"
-          [ "$code" = "200" ] || exit 1
+          [ "$code" = "200" ]
 
       - name: Generate cards
         env:
@@ -45,23 +51,37 @@ jobs:
           WORD_SLUG: ${{ steps.parse.outputs.word_slug }}
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: |
+          set -euo pipefail
           mkdir -p "src/${WORD_SLUG}"
+
+          # Issue body 抽出
           body=$(jq -r '.issue.body' <<< '${{ toJson(github.event) }}')
-          awk '/^1\./,/^$/' <<< "$body" > cme.txt
-          while read -r line; do
-            [[ "$line" =~ ^[0-9]+\.\ ([^,|]+)[,|]\ ([^,|]+)[,|]\ (.+)$ ]] || continue
-            idx="${BASH_REMATCH[0]%%.*}"
-            concept="${BASH_REMATCH[1]}"
-            meaning="${BASH_REMATCH[2]}"
-            example="${BASH_REMATCH[3]}"
-            python3 .github/scripts/generate_card.py \
-              --api-key "$DASHSCOPE_API_KEY" \
-              --word "$WORD_DISPLAY" \
-              --index "$idx" \
-              --concept "$concept" \
-              --meaning "$meaning" \
-              --example "$example" \
-              --outdir "src/$WORD_SLUG"
+
+          # コードブロックの ``` を剥がし、先頭空白を許容
+          clean_body=$(sed 's/```//g' <<< "$body" | sed 's/^[[:space:]]*//')
+
+          # "1. ..." 形式の行だけを抽出（区切りは , または | に両対応）
+          grep -E '^[0-9]+\.\s' <<< "$clean_body" > cme.txt || true
+
+          # 行ごとに厳密パース： index / concept / meaning / example
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^([0-9]+)\.\ +([^,|]+)[,|]\ +([^,|]+)[,|]\ +(.+)$ ]]; then
+              idx="${BASH_REMATCH[1]}"
+              concept="${BASH_REMATCH[2]}"
+              meaning="${BASH_REMATCH[3]}"
+              example="${BASH_REMATCH[4]}"
+
+              echo "Parsed: idx=$idx, concept=$concept"
+
+              python3 .github/scripts/generate_card.py \
+                --api-key "$DASHSCOPE_API_KEY" \
+                --word "$WORD_DISPLAY" \
+                --index "$idx" \
+                --concept "$concept" \
+                --meaning "$meaning" \
+                --example "$example" \
+                --outdir "src/$WORD_SLUG"
+            fi
           done < cme.txt
 
       # --- GPG署名を有効化（Secretsを利用） ---
@@ -75,12 +95,14 @@ jobs:
 
       - name: Commit and push
         run: |
+          set -euo pipefail
           git config user.name  "${{ secrets.SIGNING_NAME }}"
           git config user.email "${{ secrets.SIGNING_EMAIL }}"
-          git add "src/${{ steps.parse.outputs.word_slug }}/"
+          # 画像・メタ・レポートを丸ごとステージング（reports は後続で生成）
+          git add "src/${{ steps.parse.outputs.word_slug }}/" "reports/" || true
           git commit -m "feat(cards): create ${{ steps.parse.outputs.word_display }}" || echo "no changes"
 
-      - name: Clean up temp commit file
+      - name: Clean up temp file
         run: rm -f cme.txt || true
 
       - name: Create PR (always)
@@ -106,7 +128,7 @@ jobs:
           PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
           REPO: ${{ github.repository }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           gh pr review "$PR_NUMBER" --repo "$REPO" --approve --body "Auto-approved by machine user"
 
       # Auto-merge via GH CLI
@@ -117,7 +139,7 @@ jobs:
           PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
           REPO: ${{ github.repository }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --auto
 
       - name: Log PR URL
@@ -129,17 +151,17 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const word = '${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}';
-            const slug = '${{ steps.parse.outputs.word_slug    || steps.diff.outputs.word_slug }}';
-
-            // 既存のグローバル context をそのまま使う
-            const branch = `bot/vocab-${{ steps.parse.outputs.word_slug }}-${{ github.run_id }}`;
-            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/src/${slug}`;
-
+            const {context, github} = require('@actions/github');
             const fs = require('fs');
             const path = require('path');
+
+            const word = '${{ steps.parse.outputs.word_display }}';
+            const slug = '${{ steps.parse.outputs.word_slug }}';
+            const branch = `bot/vocab-${slug}-${{ github.run_id }}`;
             const dir = `src/${slug}`;
-            const metaDir = `${dir}/.meta`;
+            const metaDir = path.join(dir, '.meta');
+            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/${dir}`;
+
             let lines = [];
             lines.push(`## ${word}`, '');
 
@@ -151,12 +173,14 @@ jobs:
               const idx = f.split('_')[0];
               const concept = f.split('_').slice(1).join('_').replace('.jpg','');
               let meaning=''; let example='';
-              const metaPath = `${metaDir}/${idx}_${concept}.json`;
+
+              const metaPath = path.join(metaDir, `${idx}_${concept}.json`);
               if (fs.existsSync(metaPath)) {
                 const meta = JSON.parse(fs.readFileSync(metaPath,'utf8'));
                 meaning = meta.meaning || '';
                 example = meta.example || '';
               }
+
               lines.push(
                 `### ${idx}. ${concept}`,
                 `- Meaning: ${meaning}`,
@@ -174,27 +198,26 @@ jobs:
               body: lines.join('\n')
             });
 
-
       # ② スコアレポート生成＋コメント
       - name: Generate Legibility Report
         shell: bash
         run: >
           python3 .github/scripts/collect_legibility.py
-          --word "${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}"
-          --slug "${{ steps.parse.outputs.word_slug    || steps.diff.outputs.word_slug }}"
+          --word "${{ steps.parse.outputs.word_display }}"
+          --slug "${{ steps.parse.outputs.word_slug }}"
 
       - name: Comment Legibility Report
         uses: actions/github-script@v7
         with:
           script: |
-            const word = '${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}';
-            const slug = '${{ steps.parse.outputs.word_slug    || steps.diff.outputs.word_slug }}';
-
+            const {context, github} = require('@actions/github');
             const fs = require('fs');
             const path = require('path');
-            const reportPath = path.join('reports/layout_scores', `${slug}.csv`);
 
-            const branch = `bot/vocab-${{ steps.parse.outputs.word_slug }}-${{ github.run_id }}`;
+            const word = '${{ steps.parse.outputs.word_display }}';
+            const slug = '${{ steps.parse.outputs.word_slug }}';
+            const reportPath = path.join('reports', 'layout_scores', `${slug}.csv`);
+            const branch = `bot/vocab-${slug}-${{ github.run_id }}`;
             const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/src/${slug}`;
 
             if (!fs.existsSync(reportPath)) {
@@ -202,7 +225,6 @@ jobs:
               return;
             }
 
-            // ここを robust に：\r?\n で分割し、各セルから \r を除去
             const lines = fs.readFileSync(reportPath, 'utf8')
               .trim()
               .split(/\r?\n/)
@@ -218,8 +240,7 @@ jobs:
               '|-------|----------|--------|---------|----------|',
               ...lines.map(l => {
                 const [i,c,s,st,img] = l.split(',').map(clean);
-                // 念のためファイル名の改行系は全除去
-                const safeImg = encodeURIComponent(img.replace(/[\r\n]+/g, ''));
+                const safeImg = encodeURIComponent((img || '').replace(/[\r\n]+/g, ''));
                 return `| ${i} | ${c} | ${s} | ${st} | ![img](${repoBase}/${safeImg}?raw=true) |`;
               })
             ].join('\n');
