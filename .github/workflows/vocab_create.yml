@@ -24,6 +24,18 @@ jobs:
           ISSUE_EVENT_JSON: ${{ toJson(github.event) }}
         run: python3 .github/scripts/diff_lines.py "$ISSUE_EVENT_JSON"
 
+      - name: Check DeepAI key is accessible
+        run: |
+          if [ -z "${{ secrets.DEEPAI_API_KEY }}" ]; then
+            echo "❌ DEEPAI_API_KEY is empty or undefined!"
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "api-key: ${{ secrets.DEEPAI_API_KEY }}" \
+            -d "text=probe" https://api.deepai.org/api/text2img)
+          echo "DeepAI returned HTTP code: $code"
+          [ "$code" = "200" ] || exit 1
+
       - name: Generate cards
         env:
           WORD_DISPLAY: ${{ steps.parse.outputs.word_display }}
