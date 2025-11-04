@@ -4,7 +4,9 @@ on:
     types: [opened]
 permissions:
   contents: write
+  pull-requests: write
   issues: write
+  statuses: write
 
 jobs:
   create:
@@ -68,7 +70,33 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "src/${{ steps.parse.outputs.word_slug }}/"
           git commit -m "feat(cards): create ${{ steps.parse.outputs.word_display }}" || echo "no changes"
-          git push
+
+      - name: Create PR (always)
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ github.token }}
+          commit-message: "feat(cards): ${{ steps.parse.outputs.word_display }}"
+          branch: bot/vocab-${{ steps.parse.outputs.word_slug }}-${{ github.run_id }}
+          title: "Vocab: ${{ steps.parse.outputs.word_display }}"
+          body: |
+            Auto-generated vocabulary card.
+            - Word: ${{ steps.parse.outputs.word_display }}
+            - Folder: src/${{ steps.parse.outputs.word_slug }}
+          labels: bot,generate
+          delete-branch: true
+
+      - name: Enable auto-merge (squash)
+        if: steps.cpr.outputs.pull-request-number != ''
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ github.token }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          merge-method: squash
+
+      - name: Log PR URL
+        if: steps.cpr.outputs.pull-request-url != ''
+        run: echo "PR = ${{ steps.cpr.outputs.pull-request-url }}"
 
       # ===== ① Structured image comment =====
       - name: Comment with structured sections
