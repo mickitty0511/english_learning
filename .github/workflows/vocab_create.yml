@@ -119,6 +119,7 @@ jobs:
             - Folder: src/${{ steps.parse.outputs.word_slug }}
           labels: bot,generate
           delete-branch: true
+          clean: false
 
       # Approve PR automatically via GH CLI
       - name: Approve PR automatically via GH CLI
