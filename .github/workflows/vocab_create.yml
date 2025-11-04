@@ -89,20 +89,25 @@ jobs:
           labels: bot,generate
           delete-branch: true
 
-      - name: Approve PR automatically
-        uses: peter-evans/approve-pull-request@v3
-        with:
-          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
-          token: ${{ github.token }}
-          message: "Auto-approved vocabulary creation"
-      
-      - name: Enable auto-merge (squash)
+      - name: Approve PR automatically via GH CLI
         if: steps.cpr.outputs.pull-request-number != ''
-        uses: peter-evans/enable-pull-request-automerge@v3
-        with:
-          token: ${{ github.token }}
-          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
-          merge-method: squash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euxo pipefail
+          gh pr review "$PR_NUMBER" --repo "$REPO" --approve
+
+      - name: Enable auto-merge via GH CLI (squash)
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }} 
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euxo pipefail
+          gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --auto
 
       - name: Log PR URL
         if: steps.cpr.outputs.pull-request-url != ''
