@@ -140,7 +140,6 @@ jobs:
             const path = require('path');
             const reportPath = path.join('reports/layout_scores', `${slug}.csv`);
 
-            // 既存のグローバル context を利用
             const defaultBranch = context.payload.repository.default_branch || 'main';
             const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${defaultBranch}/src/${slug}`;
 
@@ -148,15 +147,26 @@ jobs:
               console.log("No report file found, skipping.");
               return;
             }
-            const lines = fs.readFileSync(reportPath, 'utf8').trim().split('\n').slice(1);
+
+            // ここを robust に：\r?\n で分割し、各セルから \r を除去
+            const lines = fs.readFileSync(reportPath, 'utf8')
+              .trim()
+              .split(/\r?\n/)
+              .slice(1)  // skip header
+              .filter(Boolean);
+
+            const clean = s => s.replace(/\r/g, '').trim();
+
             const md = [
               `🔎 **Legibility Report for ${word}**`,
               '',
               '| index | concept | score | status | preview |',
               '|-------|----------|--------|---------|----------|',
-              ...lines.map(l=>{
-                const [i,c,s,st,img]=l.split(',');
-                return `| ${i} | ${c} | ${s} | ${st} | ![img](${repoBase}/${encodeURIComponent(img)}?raw=true) |`;
+              ...lines.map(l => {
+                const [i,c,s,st,img] = l.split(',').map(clean);
+                // 念のためファイル名の改行系は全除去
+                const safeImg = encodeURIComponent(img.replace(/[\r\n]+/g, ''));
+                return `| ${i} | ${c} | ${s} | ${st} | ![img](${repoBase}/${safeImg}?raw=true) |`;
               })
             ].join('\n');
 
