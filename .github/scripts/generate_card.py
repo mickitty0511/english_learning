@@ -35,6 +35,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 # 生成サイズのホワイトリスト（DashScopeの許可値）
 ALLOWED_SIZES = ["1664*928","1472*1140","1328*1328","1140*1472","928*1664"]
 
+# 横長が良ければ pick_size_by_ratio(1.3)、縦長なら pick_size_by_ratio(0.7) などに変えるだけです。
+# 厳密に指定したい場合は、size="1472*1140" のように ALLOWED_SIZES のいずれかを直指定してもOK。
 def pick_size_by_ratio(target_ratio: float = 1.0) -> str:
     # 目的の縦横比(=W/H)に最も近い許可サイズを選ぶ。デフォルトは正方形。
     def ratio(s):
