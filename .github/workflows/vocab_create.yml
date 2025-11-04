@@ -152,119 +152,71 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
+            const {context, github} = require('@actions/github');
 
             const word = '${{ steps.parse.outputs.word_display }}';
             const slug = '${{ steps.parse.outputs.word_slug }}';
-            const branch = `bot/vocab-${slug}-${{ github.run_id }}`;
-            const dir = `src/${slug}`;
-            const metaDir = path.join(dir, '.meta');
-            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/${dir}`;
+            const headSha = '${{ steps.cpr.outputs.pull-request-head-sha }}' || '${{ github.sha }}';
+            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${headSha}/src/${slug}`;
 
             const LINE_RE = /^\s*(\d+)\.\s*([^,|]+)[,|]\s*([^,|]+)[,|]\s*(.+)$/;
-            const log = (phase, payload) => {
-              const safe = JSON.stringify(payload, (key, value) => {
-                if (typeof value === 'string') {
-                  return value.length > 120 ? value.slice(0, 117) + '...' : value;
-                }
-                return value;
+            const sanitize = value => (value || '').toString().trim();
+            const slugify = (value = '') =>
+              value
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9\-_]/g, '') || 'concept';
+
+            const cards = [];
+            for (const raw of (context.payload.issue?.body || '').split(/\r?\n/)) {
+              const line = raw.trim();
+              if (!line) continue;
+              const match = line.match(LINE_RE);
+              if (!match) continue;
+              const [, idx, concept, meaning, example] = match;
+              cards.push({
+                idx: Number(idx),
+                concept: sanitize(concept),
+                meaning: sanitize(meaning),
+                example: sanitize(example)
               });
-              console.log(`[comment-build] ${phase}: ${safe}`);
-            };
-            const parseIssue = (body = '') => {
-              const map = new Map();
-              for (const raw of body.split(/\r?\n/)) {
-                const line = raw.trim();
-                if (!line) continue;
-                const match = line.match(LINE_RE);
-                if (!match) continue;
-                const [, idx, concept, meaning, example] = match;
-                map.set(idx, {
-                  concept: concept.trim(),
-                  meaning: meaning.trim(),
-                  example: example.trim()
-                });
-              }
-              return map;
-            };
+            }
 
-            const issueEntries = parseIssue(context.payload.issue?.body || '');
+            cards.sort((a, b) => a.idx - b.idx);
+            console.log(`[comment-build] parsed-cards: ${JSON.stringify(cards)}`);
 
-            const files = fs.existsSync(dir)
-              ? fs.readdirSync(dir).filter(f => f.endsWith('.jpg')).sort()
-              : [];
-
-            log('files-detected', { count: files.length, files });
-
-            if (!files.length) {
+            if (!cards.length) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `⚠️ カード画像が生成されませんでした。Issue本文を確認し再実行してください。`
+                body: `⚠️ カード情報をIssue本文から取得できませんでした。フォーマットを確認してください。`
               });
               return;
             }
 
-            const sanitize = value => (value || '').toString().trim();
-            const commentLines = ['## ' + word, ''];
+            const lines = [`## ${word}`, ''];
+            for (const card of cards) {
+              const idx = card.idx;
+              const concept = card.concept || `Concept ${idx}`;
+              const meaning = card.meaning || 'N/A';
+              const example = card.example || 'N/A';
+              const filename = `${idx}_${slugify(concept)}.jpg`;
 
-            for (const file of files) {
-              const [rawIdx, ...rest] = file.replace('.jpg', '').split('_');
-              const idx = rawIdx || '';
-              const conceptKey = rest.join('_');
+              console.log(`[comment-build] composed-card: ${JSON.stringify({ idx, concept, filename })}`);
 
-              let concept = sanitize(process.env[`CONCEPT_${idx}`]);
-              let meaning = sanitize(process.env[`MEANING_${idx}`]);
-              let example = sanitize(process.env[`EXAMPLE_${idx}`]);
-
-              const metaPath = path.join(metaDir, `${idx}_${conceptKey}.json`);
-              if (fs.existsSync(metaPath)) {
-                const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-                meaning = meaning || sanitize(meta.meaning);
-                example = example || sanitize(meta.example);
-                if (!concept && meta.original) {
-                  concept = sanitize(meta.original);
-                }
-                if (!concept && meta.concept) {
-                  concept = sanitize(meta.concept);
-                }
-                log('meta-loaded', { idx, metaPath, fromMeta: { concept, meaning, example } });
-              } else {
-                log('meta-missing', { idx, expected: metaPath });
-              }
-
-              if (!concept || !meaning || !example) {
-                const fallback = issueEntries.get(idx);
-                if (fallback) {
-                  concept = concept || sanitize(fallback.concept);
-                  meaning = meaning || sanitize(fallback.meaning);
-                  example = example || sanitize(fallback.example);
-                  log('issue-fallback', { idx, concept, meaning, example });
-                }
-              }
-
-              if (!concept) {
-                concept = sanitize(conceptKey.replace(/-/g, ' '));
-              }
-              if (!meaning) meaning = 'N/A';
-              if (!example) example = 'N/A';
-
-              log('final-card', { idx, concept, meaning, example, file });
-
-              commentLines.push(
+              lines.push(
                 `### ${idx}. ${concept}`,
                 `- Meaning: ${meaning}`,
                 `- Example: ${example}`,
                 '',
-                `![${concept}](${repoBase}/${encodeURIComponent(file)}?raw=true)`,
+                `![${concept}](${repoBase}/${encodeURIComponent(filename)}?raw=true)`,
                 ''
               );
             }
 
-            const body = commentLines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
-
+            const body = lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
