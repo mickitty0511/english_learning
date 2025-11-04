@@ -35,7 +35,7 @@ jobs:
           WORD_DISPLAY: ${{ steps.diff.outputs.word_display }}
           WORD_SLUG: ${{ steps.diff.outputs.word_slug }}
           CHANGED: ${{ steps.diff.outputs.changed_indices }}
-          DEEPAI_API_KEY: ${{ secrets.DEEPAI_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: |
           mkdir -p "src/${WORD_SLUG}"
           IFS=',' read -ra IDX <<< "$CHANGED"
@@ -48,7 +48,7 @@ jobs:
             example="${!example_var}"
             echo "Re-generating $i. $concept"
             python3 .github/scripts/generate_card.py \
-              --api-key "$DEEPAI_API_KEY" \
+              --api-key "$DASHSCOPE_API_KEY" \
               --word "$WORD_DISPLAY" \
               --index "$i" \
               --concept "$concept" \

@@ -24,18 +24,24 @@ jobs:
           ISSUE_EVENT_JSON: ${{ toJson(github.event) }}
         run: python3 .github/scripts/diff_lines.py "$ISSUE_EVENT_JSON"
 
-      - name: Check DeepAI key is accessible
+      - name: Probe DashScope (HTTP code only)
+        env:
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: |
-          if [ -z "${{ secrets.DEEPAI_API_KEY }}" ]; then
-            echo "❌ DEEPAI_API_KEY is empty or undefined!"
-            exit 1
-          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${DASHSCOPE_API_KEY}" \
+            -H "X-DashScope-Async: enable" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"qwen-image-plus","input":{"prompt":"probe"},"parameters":{"size":"512*512","n":1}}' \
+            https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis)
+          echo "DashScope probe: $code"
+          [ "$code" = "200" ] || exit 1
 
       - name: Generate cards
         env:
           WORD_DISPLAY: ${{ steps.parse.outputs.word_display }}
           WORD_SLUG: ${{ steps.parse.outputs.word_slug }}
-          DEEPAI_API_KEY: ${{ secrets.DEEPAI_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
         run: |
           mkdir -p "src/${WORD_SLUG}"
           body=$(jq -r '.issue.body' <<< '${{ toJson(github.event) }}')
@@ -47,7 +53,7 @@ jobs:
             meaning="${BASH_REMATCH[2]}"
             example="${BASH_REMATCH[3]}"
             python3 .github/scripts/generate_card.py \
-              --api-key "$DEEPAI_API_KEY" \
+              --api-key "$DASHSCOPE_API_KEY" \
               --word "$WORD_DISPLAY" \
               --index "$idx" \
               --concept "$concept" \
