@@ -89,6 +89,13 @@ jobs:
           labels: bot,generate
           delete-branch: true
 
+      - name: Approve PR automatically
+        uses: peter-evans/approve-pull-request@v3
+        with:
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          token: ${{ github.token }}
+          message: "Auto-approved vocabulary creation"
+      
       - name: Enable auto-merge (squash)
         if: steps.cpr.outputs.pull-request-number != ''
         uses: peter-evans/enable-pull-request-automerge@v3
