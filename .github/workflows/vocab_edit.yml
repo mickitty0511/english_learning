@@ -67,6 +67,9 @@ jobs:
           git add "src/${{ steps.diff.outputs.word_slug }}/"
           git commit -m "fix(cards): update ${{ steps.diff.outputs.word_display }}" || echo "no changes"
         
+      - name: Clean up temp commit file
+        run: rm -f cme.txt || true
+
       - name: Create PR (always)
         id: cpr
         uses: peter-evans/create-pull-request@v6
