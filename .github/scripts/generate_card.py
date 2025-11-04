@@ -32,6 +32,17 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 # Utilities
 # =========================
 
+# 生成サイズのホワイトリスト（DashScopeの許可値）
+ALLOWED_SIZES = ["1664*928","1472*1140","1328*1328","1140*1472","928*1664"]
+
+def pick_size_by_ratio(target_ratio: float = 1.0) -> str:
+    # 目的の縦横比(=W/H)に最も近い許可サイズを選ぶ。デフォルトは正方形。
+    def ratio(s):
+        w, h = map(int, s.split("*"))
+        return w / h
+    return min(ALLOWED_SIZES, key=lambda s: abs(ratio(s) - target_ratio))
+
+
 def slug(s: str) -> str:
     s = s.lower().strip()
     s = re.sub(r"\s+", "-", s)
@@ -69,7 +80,7 @@ def dashscope_bg(
     api_key: str,
     prompt: str,
     model: str = "qwen-image-plus",
-    size: str = "1024*1024",
+    size: str = pick_size_by_ratio(1.3),
     n: int = 1,
     negative_prompt: str | None = None,
     poll_interval: float = 5.0,
