@@ -89,20 +89,22 @@ jobs:
           labels: bot,generate
           delete-branch: true
 
+      # Approve PR automatically via GH CLI
       - name: Approve PR automatically via GH CLI
         if: steps.cpr.outputs.pull-request-number != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.APPROVER_TOKEN }}
           PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
           REPO: ${{ github.repository }}
         run: |
           set -euxo pipefail
-          gh pr review "$PR_NUMBER" --repo "$REPO" --approve
+          gh pr review "$PR_NUMBER" --repo "$REPO" --approve --body "Auto-approved by machine user"
 
+      # Auto-merge via GH CLI
       - name: Enable auto-merge via GH CLI (squash)
         if: steps.cpr.outputs.pull-request-number != ''
         env:
-          GH_TOKEN: ${{ github.token }} 
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
           REPO: ${{ github.repository }}
         run: |
