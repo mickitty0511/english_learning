@@ -133,8 +133,8 @@ jobs:
             const slug = '${{ steps.parse.outputs.word_slug    || steps.diff.outputs.word_slug }}';
 
             // 既存のグローバル context をそのまま使う
-            const defaultBranch = context.payload.repository.default_branch || 'main';
-            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${defaultBranch}/src/${slug}`;
+            const branch = bot/vocab-${{ steps.parse.outputs.word_slug }}-${{ github.run_id }};
+            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/src/${slug}`;
 
             const fs = require('fs');
             const path = require('path');
@@ -194,8 +194,8 @@ jobs:
             const path = require('path');
             const reportPath = path.join('reports/layout_scores', `${slug}.csv`);
 
-            const defaultBranch = context.payload.repository.default_branch || 'main';
-            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${defaultBranch}/src/${slug}`;
+            const branch = bot/vocab-${{ steps.parse.outputs.word_slug }}-${{ github.run_id }};
+            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/src/${slug}`;
 
             if (!fs.existsSync(reportPath)) {
               console.log("No report file found, skipping.");
