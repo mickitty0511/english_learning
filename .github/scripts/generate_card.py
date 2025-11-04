@@ -92,3 +92,72 @@ bg = dashscope_bg(
     n=1,
     negative_prompt=None          # 人物回避等が必要なら 'people' などを入れる
 )
+
+def main():
+    import argparse, os, json
+    from PIL import Image
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--api-key", required=True)
+    ap.add_argument("--word", required=True)
+    ap.add_argument("--index", type=int, required=True)
+    ap.add_argument("--concept", required=True)
+    ap.add_argument("--meaning", required=True)
+    ap.add_argument("--example", required=True)
+    ap.add_argument("--outdir", required=True)
+    ap.add_argument("--input-size", nargs=2, type=int, default=[512, 512])
+    args = ap.parse_args()
+
+    os.makedirs(args.outdir, exist_ok=True)
+
+    # DeepAI呼び出しは削除し、DashScopeをここで呼ぶ
+    bg = dashscope_bg(
+        args.api_key,
+        prompt=(
+            "Cinematic illustration that reflects the interaction between subject and object in the sentence. "
+            "No text. Balanced lighting. Detailed, realistic background. "
+            f"Sentence: '{args.example}'"
+        ),
+        model="qwen-image-plus",
+        size="1024*1024",
+        n=1,
+        negative_prompt=None
+    )
+
+    # 既存のオーバーレイ関数を呼ぶ（あなたのファイルにあるものを使用）
+    img, score = overlay_image(bg, args.word, args.meaning, args.example, tuple(args.input_size))
+
+    # 保存名は既存仕様に合わせて
+    def slug(s):
+        import re
+        s = s.lower().strip()
+        s = re.sub(r"\s+", "-", s)
+        return re.sub(r"[^a-z0-9\-_]", "", s) or "concept"
+
+    safe_concept = slug(args.concept)
+    outpath = os.path.join(args.outdir, f"{args.index}_{safe_concept}.jpg")
+    img.save(outpath, "JPEG", quality=95)
+
+    # メタ情報（既存の書き方に合わせて）
+    meta_dir = os.path.join(args.outdir, ".meta")
+    os.makedirs(meta_dir, exist_ok=True)
+    meta_path = os.path.join(meta_dir, f"{args.index}_{safe_concept}.json")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "index": args.index,
+                "concept": safe_concept,
+                "meaning": args.meaning,
+                "example": args.example,
+                "score": score,
+                "status": "✅ good" if score >= 80 else "⚠️ overflow",
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    print(f"✅ saved: {outpath} | legibility={score}")
+
+if __name__ == "__main__":
+    main()
