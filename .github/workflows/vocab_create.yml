@@ -75,13 +75,13 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ github.token }}
-          commit-message: "feat(cards): ${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}"
-          branch: bot/vocab-${{ steps.parse.outputs.word_slug || steps.diff.outputs.word_slug }}-${{ github.run_id }}
-          title: "Vocab: ${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}"
+          commit-message: "feat(cards): ${{ steps.parse.outputs.word_display }}"
+          branch: bot/vocab-${{ steps.parse.outputs.word_slug }}-${{ github.run_id }}
+          title: "Vocab: ${{ steps.parse.outputs.word_display }}"
           body: |
-            Auto-generated vocabulary cards and metadata.
-            - Word: ${{ steps.parse.outputs.word_display || steps.diff.outputs.word_display }}
-            - Folder: src/${{ steps.parse.outputs.word_slug || steps.diff.outputs.word_slug }}
+            Auto-generated vocabulary card.
+            - Word: ${{ steps.parse.outputs.word_display }}
+            - Folder: src/${{ steps.parse.outputs.word_slug }}
           labels: bot,generate
           delete-branch: true
 
