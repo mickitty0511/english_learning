@@ -1,0 +1,147 @@
+name: Vocabulary Card - Edit
+on:
+  issues:
+    types: [edited]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  edit:
+    if: contains(github.event.issue.labels.*.name, 'generate')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core
+          python3 -m pip install pillow requests jq
+
+      # ===== Parse changed lines =====
+      - name: Parse changed lines
+        id: diff
+        env:
+          ISSUE_EVENT_JSON: ${{ toJson(github.event) }}
+        run: python3 .github/scripts/diff_lines.py "$ISSUE_EVENT_JSON"
+
+      # ===== Re-generate changed cards only =====
+      - name: Re-generate changed cards
+        if: steps.diff.outputs.changed_indices != ''
+        env:
+          WORD_DISPLAY: ${{ steps.diff.outputs.word_display }}
+          WORD_SLUG: ${{ steps.diff.outputs.word_slug }}
+          CHANGED: ${{ steps.diff.outputs.changed_indices }}
+          DEEPAI_API_KEY: ${{ secrets.DEEPAI_API_KEY }}
+        run: |
+          mkdir -p "src/${WORD_SLUG}"
+          IFS=',' read -ra IDX <<< "$CHANGED"
+          for i in "${IDX[@]}"; do
+            concept_var="CONCEPT_${i}"
+            meaning_var="MEANING_${i}"
+            example_var="EXAMPLE_${i}"
+            concept="${!concept_var}"
+            meaning="${!meaning_var}"
+            example="${!example_var}"
+            echo "Re-generating $i. $concept"
+            python3 .github/scripts/generate_card.py \
+              --api-key "$DEEPAI_API_KEY" \
+              --word "$WORD_DISPLAY" \
+              --index "$i" \
+              --concept "$concept" \
+              --meaning "$meaning" \
+              --example "$example" \
+              --outdir "src/$WORD_SLUG"
+          done
+
+      # ===== Commit and push =====
+      - name: Commit and push updated cards
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "src/${{ steps.diff.outputs.word_slug }}/"
+          git commit -m "fix(cards): update ${{ steps.diff.outputs.word_display }}" || echo "no changes"
+          git push
+
+      # ===== ① Structured image comment =====
+      - name: Comment with structured sections
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { context } = github;
+            const word = '${{ steps.diff.outputs.word_display }}';
+            const slug = '${{ steps.diff.outputs.word_slug }}';
+            const defaultBranch = context.payload.repository.default_branch || 'main';
+            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${defaultBranch}/src/${slug}`;
+            const fs = require('fs');
+            const dir = `src/${slug}`;
+            const metaDir = `${dir}/.meta`;
+            let lines = [];
+            lines.push(`## ${word}`, '');
+            const files = fs.existsSync(dir)
+              ? fs.readdirSync(dir).filter(f => f.endsWith('.jpg')).sort()
+              : [];
+            for (const f of files) {
+              const idx = f.split('_')[0];
+              const concept = f.split('_').slice(1).join('_').replace('.jpg','');
+              let meaning=''; let example='';
+              const metaPath = `${metaDir}/${idx}_${concept}.json`;
+              if (fs.existsSync(metaPath)) {
+                const meta = JSON.parse(fs.readFileSync(metaPath,'utf8'));
+                meaning = meta.meaning || '';
+                example = meta.example || '';
+              }
+              lines.push(
+                `### ${idx}. ${concept}`,
+                `- Meaning: ${meaning}`,
+                `- Example: ${example}`,
+                '',
+                `![${f}](${repoBase}/${encodeURIComponent(f)}?raw=true)`,
+                ''
+              );
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: lines.join('\n')
+            });
+
+      # ===== ② Generate legibility report =====
+      - name: Generate Legibility Report
+        run: python3 .github/scripts/collect_legibility.py \
+          --word "${{ steps.diff.outputs.word_display }}" \
+          --slug "${{ steps.diff.outputs.word_slug }}"
+
+      # ===== ③ Comment legibility report =====
+      - name: Comment Legibility Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const word = '${{ steps.diff.outputs.word_display }}';
+            const slug = '${{ steps.diff.outputs.word_slug }}';
+            const fs = require('fs');
+            const path = require('path');
+            const reportPath = path.join('reports/layout_scores', `${slug}.csv`);
+            const repoBase = `https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/src/${slug}`;
+            if (!fs.existsSync(reportPath)) return;
+            const lines = fs.readFileSync(reportPath, 'utf8').trim().split('\n').slice(1);
+            const md = [
+              `🔎 **Legibility Report for ${word}**`,
+              '',
+              '| index | concept | score | status | preview |',
+              '|-------|----------|--------|---------|----------|',
+              ...lines.map(l=>{
+                const [i,c,s,st,img]=l.split(',');
+                return `| ${i} | ${c} | ${s} | ${st} | ![img](${repoBase}/${encodeURIComponent(img)}?raw=true) |`;
+              })
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: md
+            });

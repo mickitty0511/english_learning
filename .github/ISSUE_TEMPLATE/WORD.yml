@@ -1,0 +1,17 @@
+name: "New Vocabulary Entry"
+description: "Register a word (or collocation) with multiple concepts/meanings/examples"
+title: "<word or collocation>"
+labels: ["vocab", "generate"]
+body:
+  - type: textarea
+    id: cme_lines
+    attributes:
+      label: Concept / Meaning / Example (one per line)
+      description: |
+        Enter multiple entries, one per line, in the format:
+        <index>. <concept>, <meaning>, <example sentence>
+      placeholder: |
+        1. purchase, take mainly by using money, he buys milk
+        2. belief, believe something, he bought what she was selling
+    validations:
+      required: true
