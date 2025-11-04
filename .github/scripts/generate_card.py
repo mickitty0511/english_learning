@@ -329,7 +329,7 @@ def main():
         api_key=args.api_key,
         prompt=prompt,
         model="qwen-image-plus",
-        size="1024*1024",
+        size=pick_size_by_ratio(1.3),
         n=1,
         negative_prompt=None
     )
