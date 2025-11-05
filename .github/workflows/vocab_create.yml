@@ -91,10 +91,11 @@ jobs:
           json=$(python3 .github/scripts/collect_legibility.py \
             --word "${{ steps.parse.outputs.word_display }}" \
             --slug "${{ steps.parse.outputs.word_slug }}")
+          json=${json//$'\r'/}
           {
-            echo "report_json<<'EOF'"
+            echo 'report_json<<EOF'
             echo "$json"
-            echo "EOF"
+            echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
       # --- GPG署名を有効化（Secretsを利用） ---
