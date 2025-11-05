@@ -183,6 +183,7 @@ jobs:
           pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
           repository: ${{ github.repository }}
           method: squash
+          delete-branch: true
 
       - name: Comment with structured sections
         if: ${{ inputs.post_comment_structured }}
