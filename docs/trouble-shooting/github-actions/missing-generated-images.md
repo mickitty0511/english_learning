@@ -10,11 +10,14 @@
 - The workflow logs (`gh run view <run-id> --log --job <job-id>`) showed messages such as `saved: src/out/1_example.jpg`, proving that image generation itself succeeded.
 
 ## Resolution
-- Update `.gitignore` so that it lists the generated images explicitly:
+- Update `.gitignore` so that it re-allows the `src/out/` directory and explicitly tracks generated assets and metadata:
   ```gitignore
-  !src/out/*.jpg
-  !src/out/.meta/*.json
+  out/
+  !src/out/
+  !src/out/.meta/
   ```
+- (Optional sanity check) Locally create dummy files under `src/out/` and run `git status` to ensure they appear; delete the temporary files afterward.
+- Re-run the vocabulary pipeline workflow and confirm that generated images now show up in the PR diff.
 
 ## Related Files
 - `.gitignore`
