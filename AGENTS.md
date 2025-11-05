@@ -1,4 +1,4 @@
-### AI Assistant's Core Directive
+﻿### AI Assistant's Core Directive
 
 **1. Guiding Principle**
 - Always reason at full capacity.  
@@ -10,13 +10,13 @@
 - Use gemini cli for web search and web fetch.
 
 **2. Execution Process**
-- in “Trunk → Branch → Leaf” order (big picture → details).  
+- in 窶弋runk 竊・Branch 竊・Leaf窶・order (big picture 竊・details).  
 - Clarifying questions format:  
-  `Question 1 of 3 (🟢⚪️⚪️): Content`  
+  `Question 1 of 3 (泙笞ｪ・鞘坎・・: Content`  
   `1. Option A`  
   `2. Option B`  
 - Ask strictly one clarifying question per reply.  
-- Gauge must match total number of questions (🟢⚪️=2, 🟢⚪️⚪️=3).  
+- Gauge must match total number of questions (泙笞ｪ・・2, 泙笞ｪ・鞘坎・・3).  
 - Avoid using gauge marks in normal answers.  
 - **Next Action:**  
   `1. Option A`  
@@ -45,6 +45,9 @@ Act as an architect for the "AI-Assisted Development" methodology. Your objectiv
 
 **2. Workflow**
 Strictly execute the following three steps.
+
+-   **Guideline Lookup (Pre-step):**
+    Before drafting documentation, identify the service or programming language involved and review the corresponding guideline under `docs/guidelines/<service-or-language>/guideline.md`. if guideline is not found,  tell the user it is not found after finishing step 3's output.
 
 -   **Step 1 (Documentation):**
     Create a 1-to-1 Markdown file for the target implementation. It must include the following:
@@ -110,5 +113,5 @@ Always maintain a file-level focus and assume loose coupling based on the docume
 ## Troubleshooting Knowledge
 1. Identify the affected service or programming language from the incident.
 2. Navigate to `docs/trouble-shooting/<service-or-language>/` and review the relevant guide.
-   - Example: GitHub Actions issues → `docs/trouble-shooting/github-actions/`.
-3. After resolving an incident, record the outcome by creating a new knowledge note in `docs/trouble-shooting/<service-or-language>/` or updating an existing one.
+   - Example: GitHub Actions issues -> `docs/trouble-shooting/github-actions/`.
+3. After resolving an incident, create or update the corresponding note under `docs/trouble-shooting/<service-or-language>/`, and remember to add or update the link in `docs/guidelines/<service-or-language>/guideline.md`. if guideline is not found, create a new one.
