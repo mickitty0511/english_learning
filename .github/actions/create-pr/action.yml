@@ -24,10 +24,6 @@ inputs:
     description: Delete the branch on merge.
     required: false
     default: "true"
-  clean:
-    description: Use clean checkout mode.
-    required: false
-    default: "false"
 outputs:
   pull-request-number:
     description: Pull request number.
@@ -52,4 +48,3 @@ runs:
         body: ${{ inputs.body }}
         labels: ${{ inputs.labels }}
         delete-branch: ${{ inputs.delete-branch }}
-        clean: ${{ inputs.clean }}

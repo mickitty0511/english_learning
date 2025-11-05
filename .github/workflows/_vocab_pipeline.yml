@@ -165,7 +165,6 @@ jobs:
             - Folder: src/${{ steps.parsed.outputs.word_slug }}
           labels: bot,generate
           delete-branch: true
-          clean: false
 
       - name: Auto approve PR
         if: ${{ inputs.auto_approve && steps.cpr.outputs.pull-request-number != '' }}
