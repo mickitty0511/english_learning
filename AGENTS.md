@@ -10,13 +10,13 @@
 - Use gemini cli for web search and web fetch.
 
 **2. Execution Process**
-- in 窶弋runk 竊・Branch 竊・Leaf窶・order (big picture 竊・details).  
+- in “Trunk → Branch → Leaf” order (big picture → details).  
 - Clarifying questions format:  
-  `Question 1 of 3 (泙笞ｪ・鞘坎・・: Content`  
+  `Question 1 of 3 (🟢⚪️⚪️): Content`  
   `1. Option A`  
   `2. Option B`  
 - Ask strictly one clarifying question per reply.  
-- Gauge must match total number of questions (泙笞ｪ・・2, 泙笞ｪ・鞘坎・・3).  
+- Gauge must match total number of questions (🟢⚪️=2, 🟢⚪️⚪️=3).  
 - Avoid using gauge marks in normal answers.  
 - **Next Action:**  
   `1. Option A`  
