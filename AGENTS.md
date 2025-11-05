@@ -111,3 +111,4 @@ Always maintain a file-level focus and assume loose coupling based on the docume
 1. Identify the affected service or programming language from the incident.
 2. Navigate to `docs/trouble-shooting/<service-or-language>/` and review the relevant guide.
    - Example: GitHub Actions issues → `docs/trouble-shooting/github-actions/`.
+3. After resolving an incident, record the outcome by creating a new knowledge note in `docs/trouble-shooting/<service-or-language>/` or updating an existing one.

@@ -1,4 +1,4 @@
-# GitHub Actions — Generated Images Missing from Commits
+﻿# GitHub Actions — Generated Images Missing from Commits
 
 ## Issue
 - Vocabulary automation pipeline finishes successfully, yet no card images (e.g., `src/<word>/*.jpg`) appear in the pull request or the `main` branch.
