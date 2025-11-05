@@ -65,17 +65,10 @@ coverage/
 __initialized/
 
 # this repository specific
-!src/build/*.jpg
-!src/build/.meta/*.json
-!src/out/*.jpg
-!src/out/.meta/*.json
-!src/target/*.jpg
-!src/target/.meta/*.json
-!src/vendor/*.jpg
-!src/vendor/.meta/*.json
-!src/coverage/*.jpg
-!src/coverage/.meta/*.json
-!src/dist/*.jpg
-!src/dist/.meta/*.json
-!src/logs/*.jpg
-!src/logs/.meta/*.json
+!src/build/
+!src/out/
+!src/target/
+!src/vendor/
+!src/coverage/
+!src/dist/
+!src/logs/
