@@ -84,6 +84,19 @@ jobs:
             fi
           done < cme.txt
 
+      - name: Collect legibility data
+        id: legibility
+        run: |
+          set -euo pipefail
+          json=$(python3 .github/scripts/collect_legibility.py \
+            --word "${{ steps.parse.outputs.word_display }}" \
+            --slug "${{ steps.parse.outputs.word_slug }}")
+          {
+            echo "report_json<<'EOF'"
+            echo "$json"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       # --- GPG署名を有効化（Secretsを利用） ---
       - name: Import GPG key for signing
         uses: crazy-max/ghaction-import-gpg@v6
@@ -107,7 +120,7 @@ jobs:
 
       - name: Create PR (always)
         id: cpr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ github.token }}
           commit-message: "feat(cards): ${{ steps.parse.outputs.word_display }}"
@@ -223,50 +236,55 @@ jobs:
             });
 
       # ② スコアレポート生成＋コメント
-      - name: Generate Legibility Report
-        shell: bash
-        run: >
-          python3 .github/scripts/collect_legibility.py
-          --word "${{ steps.parse.outputs.word_display }}"
-          --slug "${{ steps.parse.outputs.word_slug }}"
-
       - name: Comment Legibility Report
         uses: actions/github-script@v7
+        env:
+          REPORT_JSON: ${{ steps.legibility.outputs.report_json }}
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
-
             const word = '${{ steps.parse.outputs.word_display }}';
             const slug = '${{ steps.parse.outputs.word_slug }}';
-            const reportPath = path.join('reports', 'layout_scores', `${slug}.csv`);
-            const branch = `bot/vocab-${slug}-${{ github.run_id }}`;
-            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/src/${slug}`;
+            const headSha = '${{ steps.cpr.outputs.pull-request-head-sha }}' || '${{ github.sha }}';
+            const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${headSha}/src/${slug}`;
 
-            if (!fs.existsSync(reportPath)) {
-              console.log("No report file found, skipping.");
+            let rows = [];
+            try {
+              const raw = process.env.REPORT_JSON || '[]';
+              rows = JSON.parse(raw);
+            } catch (error) {
+              console.log(`[legibility] failed to parse report JSON: ${error.message}`);
+            }
+
+            if (!Array.isArray(rows) || rows.length === 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `⚠️ Legibility data was not available for ${word}.`
+              });
               return;
             }
 
-            const lines = fs.readFileSync(reportPath, 'utf8')
-              .trim()
-              .split(/\r?\n/)
-              .slice(1)  // skip header
-              .filter(Boolean);
-
-            const clean = s => s.replace(/\r/g, '').trim();
-
-            const md = [
+            const header = [
               `🔎 **Legibility Report for ${word}**`,
               '',
               '| index | concept | score | status | preview |',
-              '|-------|----------|--------|---------|----------|',
-              ...lines.map(l => {
-                const [i,c,s,st,img] = l.split(',').map(clean);
-                const safeImg = encodeURIComponent((img || '').replace(/[\r\n]+/g, ''));
-                return `| ${i} | ${c} | ${s} | ${st} | ![img](${repoBase}/${safeImg}?raw=true) |`;
-              })
-            ].join('\n');
+              '|-------|---------|-------|--------|---------|'
+            ];
+
+            const bodyLines = rows.map(row => {
+              const idx = row.index ?? '';
+              const concept = row.concept ?? '';
+              const score = row.score ?? '';
+              const status = row.status ?? '';
+              const image = row.image ?? '';
+              const preview = image
+                ? `![img](${repoBase}/${encodeURIComponent(image)}?raw=true)`
+                : '';
+              return `| ${idx} | ${concept} | ${score} | ${status} | ${preview} |`;
+            });
+
+            const md = [...header, ...bodyLines].join('\n');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
