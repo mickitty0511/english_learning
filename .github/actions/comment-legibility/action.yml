@@ -44,12 +44,12 @@ runs:
           const word = process.env.WORD_DISPLAY;
           const slug = process.env.WORD_SLUG;
           const headSha = process.env.HEAD_SHA;
-          const repoBase = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/blob/${headSha}/src/${slug}`;
+          const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${headSha}/src/${slug}`;
 
           if (!Array.isArray(rows) || rows.length === 0) {
             await github.rest.issues.createComment({
-              owner: github.context.repo.owner,
-              repo: github.context.repo.repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               issue_number: issueNumber,
               body: `⚠️ Legibility data was not available for ${word}.`
             });
@@ -77,8 +77,8 @@ runs:
 
           const commentBody = [...header, ...bodyLines].join('\n');
           await github.rest.issues.createComment({
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
             issue_number: issueNumber,
             body: commentBody
           });

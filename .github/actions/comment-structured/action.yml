@@ -61,15 +61,15 @@ runs:
           core.info(`[comment] cards parsed: ${JSON.stringify(cards)}`);
           if (!cards.length) {
             await github.rest.issues.createComment({
-              owner: github.context.repo.owner,
-              repo: github.context.repo.repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               issue_number: issueNumber,
               body: '⚠️ カード情報をIssue本文から取得できませんでした。フォーマットを確認してください。'
             });
             return;
           }
 
-          const repoBase = `https://github.com/${github.context.repo.owner}/${github.context.repo.repo}/blob/${headSha}/src/${slug}`;
+          const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${headSha}/src/${slug}`;
           const lines = [`## ${word}`, ''];
           for (const card of cards) {
             const fileName = `${card.idx}_${slugify(card.concept)}.jpg`;
@@ -85,8 +85,8 @@ runs:
 
           const commentBody = lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
           await github.rest.issues.createComment({
-            owner: github.context.repo.owner,
-            repo: github.context.repo.repo,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
             issue_number: issueNumber,
             body: commentBody
           });
