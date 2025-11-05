@@ -7,7 +7,7 @@
 ## Repository Layout
 - `.github/ISSUE_TEMPLATE/WORD.md`: issue template for registering new vocabulary.
 - `src/<word-or-collocation>/`: folder that stores reference images for each meaning (numbered to match the issue content).
-- `AGENT.md`: this guide for the AI assistant.
+- `AGENTS.md`: this guide for the AI assistant.
 
 ## Word Registration Workflow
 1. Confirm the weekly milestone exists (see Milestones section). If not, create it before opening the issue.
