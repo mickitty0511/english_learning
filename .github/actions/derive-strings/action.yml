@@ -1,0 +1,58 @@
+name: Derive Vocabulary Strings
+description: Prepare commit messages, branch names, and titles for vocabulary workflows.
+inputs:
+  mode:
+    description: Workflow mode (create or edit).
+    required: true
+  word_display:
+    description: Display name of the vocabulary word.
+    required: true
+  word_slug:
+    description: Slugified vocabulary identifier.
+    required: true
+  run_id:
+    description: GitHub run identifier (for branch uniqueness).
+    required: true
+outputs:
+  commit_message:
+    description: Commit message for repository changes.
+    value: ${{ steps.strings.outputs.commit_message }}
+  pr_commit_message:
+    description: Body commit message for create-pull-request.
+    value: ${{ steps.strings.outputs.pr_commit_message }}
+  branch_name:
+    description: Branch name for the automation PR.
+    value: ${{ steps.strings.outputs.branch_name }}
+  pr_title:
+    description: Pull request title.
+    value: ${{ steps.strings.outputs.pr_title }}
+runs:
+  using: composite
+  steps:
+    - name: Derive strings
+      id: strings
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        WORD_DISPLAY: ${{ inputs.word_display }}
+        WORD_SLUG: ${{ inputs.word_slug }}
+        RUN_ID: ${{ inputs.run_id }}
+      run: |
+        set -euo pipefail
+        if [ "$MODE" = "create" ]; then
+          commit_message="feat(cards): create ${WORD_DISPLAY}"
+          pr_commit_message="feat(cards): ${WORD_DISPLAY}"
+        else
+          commit_message="fix(cards): update ${WORD_DISPLAY}"
+          pr_commit_message="fix(cards): ${WORD_DISPLAY}"
+        fi
+
+        branch="bot/vocab-${WORD_SLUG}-${RUN_ID}"
+        title="Vocab: ${WORD_DISPLAY}"
+
+        {
+          echo "commit_message=${commit_message}"
+          echo "pr_commit_message=${pr_commit_message}"
+          echo "branch_name=${branch}"
+          echo "pr_title=${title}"
+        } >> "$GITHUB_OUTPUT"

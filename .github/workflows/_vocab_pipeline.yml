@@ -116,6 +116,15 @@ jobs:
           word: ${{ steps.parsed.outputs.word_display }}
           slug: ${{ steps.parsed.outputs.word_slug }}
 
+      - name: Derive text templates
+        id: strings
+        uses: ./.github/actions/derive-strings
+        with:
+          mode: ${{ inputs.mode }}
+          word_display: ${{ steps.parsed.outputs.word_display }}
+          word_slug: ${{ steps.parsed.outputs.word_slug }}
+          run_id: ${{ github.run_id }}
+
       - name: Run tests
         if: ${{ inputs.run_tests }}
         shell: bash
@@ -138,7 +147,7 @@ jobs:
         uses: ./.github/actions/git-commit
         with:
           word-slug: ${{ steps.parsed.outputs.word_slug }}
-          commit-message: ${{ inputs.mode == 'create' && format('feat(cards): create {0}', steps.parsed.outputs.word_display) || format('fix(cards): update {0}', steps.parsed.outputs.word_display) }}
+          commit-message: ${{ steps.strings.outputs.commit_message }}
           signing-name: ${{ secrets.SIGNING_NAME }}
           signing-email: ${{ secrets.SIGNING_EMAIL }}
 
@@ -147,9 +156,9 @@ jobs:
         uses: ./.github/actions/create-pr
         with:
           token: ${{ env.PIPELINE_GH_TOKEN }}
-          commit-message: ${{ inputs.mode == 'create' && format('feat(cards): {0}', steps.parsed.outputs.word_display) || format('fix(cards): {0}', steps.parsed.outputs.word_display) }}
-          branch: ${{ format('bot/vocab-{0}-{1}', steps.parsed.outputs.word_slug, github.run_id) }}
-          title: ${{ format('Vocab: {0}', steps.parsed.outputs.word_display) }}
+          commit-message: ${{ steps.strings.outputs.pr_commit_message }}
+          branch: ${{ steps.strings.outputs.branch_name }}
+          title: ${{ steps.strings.outputs.pr_title }}
           body: |
             Auto-generated vocabulary card update.
             - Word: ${{ steps.parsed.outputs.word_display }}
