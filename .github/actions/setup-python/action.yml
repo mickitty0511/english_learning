@@ -1,0 +1,43 @@
+name: Setup Python Environment
+description: Provision Python and shared dependencies for vocabulary workflows.
+inputs:
+  python-version:
+    description: Python version to install.
+    required: false
+    default: "3.12"
+  requirements:
+    description: Optional requirements.txt path to install.
+    required: false
+    default: ""
+  extra-packages:
+    description: Additional pip packages to install (space separated).
+    required: false
+    default: "pillow requests"
+runs:
+  using: composite
+  steps:
+    - name: Configure Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::apt dependencies"
+        sudo apt-get update
+        sudo apt-get install -y fonts-dejavu-core jq
+        echo "::endgroup::"
+    - name: Install Python packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::pip dependencies"
+        python -m pip install --upgrade pip
+        if [ -n "${{ inputs.requirements }}" ]; then
+          python -m pip install -r "${{ inputs.requirements }}"
+        fi
+        if [ -n "${{ inputs.extra-packages }}" ]; then
+          python -m pip install ${{ inputs.extra-packages }}
+        fi
+        echo "::endgroup::"

@@ -1,0 +1,29 @@
+name: Parse Vocabulary Issue
+description: Normalize issue payload for vocabulary workflows.
+inputs:
+  issue-payload:
+    description: Raw JSON string of the issue event.
+    required: true
+outputs:
+  word_display:
+    description: Display text of the vocabulary word.
+    value: ${{ steps.parse.outputs.word_display }}
+  word_slug:
+    description: Slugified identifier for the word.
+    value: ${{ steps.parse.outputs.word_slug }}
+  changed_indices:
+    description: Comma separated list of indices to regenerate.
+    value: ${{ steps.parse.outputs.changed_indices }}
+runs:
+  using: composite
+  steps:
+    - name: Run diff_lines.py
+      id: parse
+      shell: bash
+      env:
+        ISSUE_EVENT_JSON: ${{ inputs.issue-payload }}
+      run: |
+        set -euo pipefail
+        echo "::group::parse issue"
+        python3 .github/scripts/diff_lines.py "$ISSUE_EVENT_JSON"
+        echo "::endgroup::"

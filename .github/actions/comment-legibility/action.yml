@@ -1,0 +1,94 @@
+name: Comment Legibility Report
+description: Post legibility table comment based on generated metrics.
+inputs:
+  token:
+    description: GitHub token used for commenting.
+    required: true
+  issue-payload:
+    description: Raw JSON payload for the originating issue.
+    required: true
+  report-json:
+    description: JSON array returned by collect-legibility.
+    required: true
+  word:
+    description: Word display value.
+    required: true
+  slug:
+    description: Word slug.
+    required: true
+  head-sha:
+    description: SHA to use for blob links.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Post legibility comment
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const core = require('@actions/core');
+          const github = require('@actions/github');
+          const context = github.context;
+
+          const payload = JSON.parse(process.env.ISSUE_PAYLOAD || '{}');
+          const issueNumber = payload?.issue?.number;
+          if (!issueNumber) {
+            core.warning('Issue number missing; skipping legibility comment.');
+            return;
+          }
+
+          let rows = [];
+          try {
+            rows = JSON.parse(process.env.REPORT_JSON || '[]');
+          } catch (error) {
+            core.warning(`Failed to parse report JSON: ${error.message}`);
+          }
+
+          const word = process.env.WORD_DISPLAY;
+          const slug = process.env.WORD_SLUG;
+          const headSha = process.env.HEAD_SHA;
+          const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${headSha}/src/${slug}`;
+
+          if (!Array.isArray(rows) || rows.length === 0) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `⚠️ Legibility data was not available for ${word}.`
+            });
+            return;
+          }
+
+          const header = [
+            `🔎 **Legibility Report for ${word}**`,
+            '',
+            '| index | concept | score | status | preview |',
+            '|-------|---------|-------|--------|---------|'
+          ];
+
+          const bodyLines = rows.map(row => {
+            const idx = row.index ?? '';
+            const concept = row.concept ?? '';
+            const score = row.score ?? '';
+            const status = row.status ?? '';
+            const image = row.image ?? '';
+            const preview = image
+              ? `![img](${repoBase}/${encodeURIComponent(image)}?raw=true)`
+              : '';
+            return `| ${idx} | ${concept} | ${score} | ${status} | ${preview} |`;
+          });
+
+          const commentBody = [...header, ...bodyLines].join('\n');
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issueNumber,
+            body: commentBody
+          });
+      env:
+        ISSUE_PAYLOAD: ${{ inputs.issue-payload }}
+        REPORT_JSON: ${{ inputs.report-json }}
+        WORD_DISPLAY: ${{ inputs.word }}
+        WORD_SLUG: ${{ inputs.slug }}
+        HEAD_SHA: ${{ inputs.head-sha }}

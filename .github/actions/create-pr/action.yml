@@ -1,0 +1,55 @@
+name: Create Vocabulary Pull Request
+description: Create or update the automation pull request.
+inputs:
+  token:
+    description: GitHub token with PR write access.
+    required: true
+  commit-message:
+    description: Commit message for PR commits.
+    required: true
+  branch:
+    description: Branch name to create/update.
+    required: true
+  title:
+    description: Pull request title.
+    required: true
+  body:
+    description: Pull request body.
+    required: true
+  labels:
+    description: Comma separated labels to apply.
+    required: false
+    default: "bot,generate"
+  delete-branch:
+    description: Delete the branch on merge.
+    required: false
+    default: "true"
+  clean:
+    description: Use clean checkout mode.
+    required: false
+    default: "false"
+outputs:
+  pull-request-number:
+    description: Pull request number.
+    value: ${{ steps.cpr.outputs.pull-request-number }}
+  pull-request-url:
+    description: Pull request URL.
+    value: ${{ steps.cpr.outputs.pull-request-url }}
+  pull-request-head-sha:
+    description: Head SHA of the pull request.
+    value: ${{ steps.cpr.outputs.pull-request-head-sha }}
+runs:
+  using: composite
+  steps:
+    - name: Create pull request
+      id: cpr
+      uses: peter-evans/create-pull-request@v7
+      with:
+        token: ${{ inputs.token }}
+        commit-message: ${{ inputs.commit-message }}
+        branch: ${{ inputs.branch }}
+        title: ${{ inputs.title }}
+        body: ${{ inputs.body }}
+        labels: ${{ inputs.labels }}
+        delete-branch: ${{ inputs.delete-branch }}
+        clean: ${{ inputs.clean }}

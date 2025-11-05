@@ -1,0 +1,35 @@
+name: Collect Legibility Report
+description: Aggregate legibility metrics and expose JSON.
+inputs:
+  word:
+    description: Word display value.
+    required: true
+  slug:
+    description: Word slug.
+    required: true
+outputs:
+  report_json:
+    description: JSON array of legibility metrics.
+    value: ${{ steps.collect.outputs.report_json }}
+runs:
+  using: composite
+  steps:
+    - name: Run collect_legibility.py
+      id: collect
+      shell: bash
+      env:
+        WORD_DISPLAY: ${{ inputs.word }}
+        WORD_SLUG: ${{ inputs.slug }}
+      run: |
+        set -euo pipefail
+        echo "::group::collect legibility"
+        json=$(python3 .github/scripts/collect_legibility.py \
+          --word "$WORD_DISPLAY" \
+          --slug "$WORD_SLUG")
+        json=${json//$'\r'/}
+        {
+          echo 'report_json<<EOF'
+          echo "$json"
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
+        echo "::endgroup::"

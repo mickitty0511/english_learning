@@ -1,0 +1,35 @@
+name: Enable Auto Merge
+description: Enable auto-merge on the generated pull request.
+inputs:
+  token:
+    description: GitHub token used to enable auto-merge.
+    required: true
+  pull-request-number:
+    description: Pull request number.
+    required: true
+  repository:
+    description: owner/repo identifier.
+    required: true
+  method:
+    description: Merge method (merge, squash, rebase).
+    required: false
+    default: "squash"
+runs:
+  using: composite
+  steps:
+    - name: Enable auto-merge
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        if [ -z "${GH_TOKEN}" ]; then
+          echo "::warning::No token supplied for auto-merge; skipping."
+          exit 0
+        fi
+        echo "::group::gh pr merge"
+        gh pr merge "${{ inputs.pull-request-number }}" \
+          --repo "${{ inputs.repository }}" \
+          --${{ inputs.method }} \
+          --auto
+        echo "::endgroup::"

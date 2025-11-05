@@ -1,0 +1,32 @@
+name: Commit Vocabulary Assets
+description: Stage and commit generated vocabulary assets.
+inputs:
+  word-slug:
+    description: Word slug used for asset paths.
+    required: true
+  commit-message:
+    description: Commit message to use.
+    required: true
+  signing-name:
+    description: Git user.name for signing.
+    required: true
+  signing-email:
+    description: Git user.email for signing.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Configure Git identity
+      shell: bash
+      run: |
+        set -euo pipefail
+        git config user.name "${{ inputs.signing-name }}"
+        git config user.email "${{ inputs.signing-email }}"
+    - name: Commit changes
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::git commit"
+        git add "src/${{ inputs.word-slug }}/" "reports/" || true
+        git commit -m "${{ inputs.commit-message }}" || echo "no changes"
+        echo "::endgroup::"

@@ -1,0 +1,49 @@
+name: Probe DashScope
+description: Smoke-test DashScope availability before image generation.
+inputs:
+  api-key:
+    description: DashScope API key.
+    required: true
+  model:
+    description: Model name to probe.
+    required: false
+    default: "qwen-image-plus"
+  size:
+    description: Canvas size to request during probe.
+    required: false
+    default: "512*512"
+  prompt:
+    description: Prompt text for probe request.
+    required: false
+    default: "probe"
+outputs:
+  status:
+    description: HTTP status returned by the probe request.
+    value: ${{ steps.probe.outputs.status }}
+runs:
+  using: composite
+  steps:
+    - name: Probe API
+      id: probe
+      shell: bash
+      env:
+        DASH_API_KEY: ${{ inputs.api-key }}
+        DASH_MODEL: ${{ inputs.model }}
+        DASH_SIZE: ${{ inputs.size }}
+        DASH_PROMPT: ${{ inputs.prompt }}
+      run: |
+        set -euo pipefail
+        echo "::group::dashscope probe"
+        status=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "Authorization: Bearer ${DASH_API_KEY}" \
+          -H "X-DashScope-Async: enable" \
+          -H "Content-Type: application/json" \
+          -d "{\"model\":\"${DASH_MODEL}\",\"input\":{\"prompt\":\"${DASH_PROMPT}\"},\"parameters\":{\"size\":\"${DASH_SIZE}\",\"n\":1}}" \
+          https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis)
+        echo "DashScope status: $status"
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        if [ "$status" != "200" ]; then
+          echo "::error::DashScope probe failed (status $status)"
+          exit 1
+        fi
+        echo "::endgroup::"

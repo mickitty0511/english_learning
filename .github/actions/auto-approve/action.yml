@@ -1,0 +1,35 @@
+name: Auto Approve Pull Request
+description: Approve the generated pull request if credentials are available.
+inputs:
+  token:
+    description: GitHub token used for approval.
+    required: false
+  pull-request-number:
+    description: Pull request number to approve.
+    required: true
+  repository:
+    description: owner/repo identifier.
+    required: true
+  body:
+    description: Review body message.
+    required: false
+    default: "Auto-approved by machine user"
+runs:
+  using: composite
+  steps:
+    - name: Approve pull request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        if [ -z "${GH_TOKEN}" ]; then
+          echo "No approver token supplied; skipping auto-approval."
+          exit 0
+        fi
+        echo "::group::gh pr review"
+        gh pr review "${{ inputs.pull-request-number }}" \
+          --repo "${{ inputs.repository }}" \
+          --approve \
+          --body "${{ inputs.body }}"
+        echo "::endgroup::"

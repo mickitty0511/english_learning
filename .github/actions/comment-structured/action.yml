@@ -1,0 +1,101 @@
+name: Comment Structured Cards
+description: Post structured vocabulary card preview comment.
+inputs:
+  token:
+    description: GitHub token used for commenting.
+    required: true
+  issue-payload:
+    description: Raw JSON payload for the originating issue.
+    required: true
+  word:
+    description: Word display value.
+    required: true
+  slug:
+    description: Word slug.
+    required: true
+  head-sha:
+    description: SHA to use for blob links.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Post structured comment
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const core = require('@actions/core');
+          const github = require('@actions/github');
+          const context = github.context;
+
+          const payload = JSON.parse(process.env.ISSUE_PAYLOAD || '{}');
+          const word = process.env.WORD_DISPLAY;
+          const slug = process.env.WORD_SLUG;
+          const headSha = process.env.HEAD_SHA;
+          const issueNumber = payload?.issue?.number;
+          if (!issueNumber) {
+            core.warning('Issue number missing; skipping structured comment.');
+            return;
+          }
+
+          const bodyLines = payload?.issue?.body?.split(/\r?\n/) ?? [];
+          const lineRe = /^\s*(\d+)\.\s*([^,|]+)[,|]\s*([^,|]+)[,|]\s*(.+)$/;
+          const sanitize = (value = '') => String(value).trim();
+          const slugify = (value = '') =>
+            value
+              .toLowerCase()
+              .trim()
+              .replace(/\s+/g, '-')
+              .replace(/[^a-z0-9\-_]/g, '') || 'concept';
+
+          const cards = [];
+          for (const line of bodyLines) {
+            const match = line.trim().match(lineRe);
+            if (!match) continue;
+            const [, idx, concept, meaning, example] = match;
+            cards.push({
+              idx: Number(idx),
+              concept: sanitize(concept),
+              meaning: sanitize(meaning),
+              example: sanitize(example)
+            });
+          }
+
+          cards.sort((a, b) => a.idx - b.idx);
+          core.info(`[comment] cards parsed: ${JSON.stringify(cards)}`);
+          if (!cards.length) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: '⚠️ カード情報をIssue本文から取得できませんでした。フォーマットを確認してください。'
+            });
+            return;
+          }
+
+          const repoBase = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${headSha}/src/${slug}`;
+          const lines = [`## ${word}`, ''];
+          for (const card of cards) {
+            const fileName = `${card.idx}_${slugify(card.concept)}.jpg`;
+            lines.push(
+              `### ${card.idx}. ${card.concept || `Concept ${card.idx}`}`,
+              `- Meaning: ${card.meaning || 'N/A'}`,
+              `- Example: ${card.example || 'N/A'}`,
+              '',
+              `![${card.concept}](${repoBase}/${encodeURIComponent(fileName)}?raw=true)`,
+              ''
+            );
+          }
+
+          const commentBody = lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issueNumber,
+            body: commentBody
+          });
+      env:
+        ISSUE_PAYLOAD: ${{ inputs.issue-payload }}
+        WORD_DISPLAY: ${{ inputs.word }}
+        WORD_SLUG: ${{ inputs.slug }}
+        HEAD_SHA: ${{ inputs.head-sha }}

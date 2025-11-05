@@ -1,0 +1,81 @@
+name: Generate Vocabulary Cards
+description: Regenerate vocabulary cards for all requested indices.
+inputs:
+  mode:
+    description: Workflow mode (create or edit).
+    required: true
+  word:
+    description: Word display name.
+    required: true
+  slug:
+    description: Word slug.
+    required: true
+  changed-indices:
+    description: Comma separated list of indices to process.
+    required: true
+outputs:
+  generated:
+    description: Number of cards regenerated.
+    value: ${{ steps.generate.outputs.generated }}
+  skipped:
+    description: Number of indices skipped due to missing data.
+    value: ${{ steps.generate.outputs.skipped }}
+runs:
+  using: composite
+  steps:
+    - name: Generate cards
+      id: generate
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        WORD_DISPLAY: ${{ inputs.word }}
+        WORD_SLUG: ${{ inputs.slug }}
+        CHANGED_INDICES: ${{ inputs.changed-indices }}
+      run: |
+        set -euo pipefail
+        echo "::group::generate cards (${MODE})"
+        if [ -z "$CHANGED_INDICES" ]; then
+          echo "No changed indices detected; skipping generation."
+          echo "generated=0" >> "$GITHUB_OUTPUT"
+          echo "skipped=0" >> "$GITHUB_OUTPUT"
+          echo "::endgroup::"
+          exit 0
+        fi
+
+        mkdir -p "src/${WORD_SLUG}"
+        generated=0
+        skipped=0
+        IFS=',' read -ra IDX <<< "$CHANGED_INDICES"
+        for raw_idx in "${IDX[@]}"; do
+          idx="$(echo "$raw_idx" | xargs)"
+          if [ -z "$idx" ]; then
+            continue
+          fi
+          concept_var="CONCEPT_${idx}"
+          meaning_var="MEANING_${idx}"
+          example_var="EXAMPLE_${idx}"
+          concept="$(printenv "$concept_var")"
+          meaning="$(printenv "$meaning_var")"
+          example="$(printenv "$example_var")"
+
+          if [ -z "$concept" ] || [ -z "$meaning" ] || [ -z "$example" ]; then
+            echo "::warning::Skipping index ${idx} because concept/meaning/example is missing."
+            skipped=$((skipped + 1))
+            continue
+          fi
+
+          echo "Generating card #${idx} (${concept})"
+          python3 .github/scripts/generate_card.py \
+            --api-key "$DASHSCOPE_API_KEY" \
+            --word "$WORD_DISPLAY" \
+            --index "$idx" \
+            --concept "$concept" \
+            --meaning "$meaning" \
+            --example "$example" \
+            --outdir "src/$WORD_SLUG"
+          generated=$((generated + 1))
+        done
+
+        echo "generated=$generated" >> "$GITHUB_OUTPUT"
+        echo "skipped=$skipped" >> "$GITHUB_OUTPUT"
+        echo "::endgroup::"

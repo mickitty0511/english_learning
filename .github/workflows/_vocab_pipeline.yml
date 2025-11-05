@@ -1,0 +1,203 @@
+name: Vocabulary Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        required: true
+        description: '"create" または "edit" を指定'
+      issue_payload:
+        type: string
+        required: true
+        description: 元IssueイベントのJSON文字列
+      python_version:
+        type: string
+        required: false
+        default: "3.12"
+      requirements:
+        type: string
+        required: false
+        default: ""
+      run_tests:
+        type: boolean
+        required: false
+        default: false
+      post_comment_structured:
+        type: boolean
+        required: false
+        default: true
+      post_comment_legibility:
+        type: boolean
+        required: false
+        default: true
+      auto_approve:
+        type: boolean
+        required: false
+        default: true
+      auto_merge:
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      DASHSCOPE_API_KEY:
+        required: true
+      GPG_PRIVATE_KEY:
+        required: true
+      GPG_PASSPHRASE:
+        required: true
+      SIGNING_NAME:
+        required: true
+      SIGNING_EMAIL:
+        required: true
+      APPROVER_TOKEN:
+        required: false
+      GH_TOKEN:
+        required: false
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        uses: reviewdog/action-actionlint@v1.47.0
+        with:
+          github_token: ${{ github.token }}
+
+  main:
+    needs: actionlint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      PIPELINE_GH_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ inputs.python_version }}
+          requirements: ${{ inputs.requirements }}
+
+      - name: Parse issue payload
+        id: parsed
+        uses: ./.github/actions/parse-issue
+        with:
+          issue-payload: ${{ inputs.issue_payload }}
+
+      - name: Probe DashScope
+        id: dashscope
+        uses: ./.github/actions/dashscope-probe
+        with:
+          api-key: ${{ secrets.DASHSCOPE_API_KEY }}
+
+      - name: Generate cards
+        id: generate
+        uses: ./.github/actions/generate-cards
+        with:
+          mode: ${{ inputs.mode }}
+          word: ${{ steps.parsed.outputs.word_display }}
+          slug: ${{ steps.parsed.outputs.word_slug }}
+          changed-indices: ${{ steps.parsed.outputs.changed_indices }}
+        env:
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+
+      - name: Collect legibility data
+        id: legibility
+        uses: ./.github/actions/collect-legibility
+        with:
+          word: ${{ steps.parsed.outputs.word_display }}
+          slug: ${{ steps.parsed.outputs.word_slug }}
+
+      - name: Run tests
+        if: ${{ inputs.run_tests }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::group::pytest"
+          python -m pip install pytest
+          pytest -q
+          echo "::endgroup::"
+
+      - name: Import GPG key for signing
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - name: Commit changes
+        uses: ./.github/actions/git-commit
+        with:
+          word-slug: ${{ steps.parsed.outputs.word_slug }}
+          commit-message: ${{ inputs.mode == 'create' && format('feat(cards): create {0}', steps.parsed.outputs.word_display) || format('fix(cards): update {0}', steps.parsed.outputs.word_display) }}
+          signing-name: ${{ secrets.SIGNING_NAME }}
+          signing-email: ${{ secrets.SIGNING_EMAIL }}
+
+      - name: Create pull request
+        id: cpr
+        uses: ./.github/actions/create-pr
+        with:
+          token: ${{ env.PIPELINE_GH_TOKEN }}
+          commit-message: ${{ inputs.mode == 'create' && format('feat(cards): {0}', steps.parsed.outputs.word_display) || format('fix(cards): {0}', steps.parsed.outputs.word_display) }}
+          branch: ${{ format('bot/vocab-{0}-{1}', steps.parsed.outputs.word_slug, github.run_id) }}
+          title: ${{ format('Vocab: {0}', steps.parsed.outputs.word_display) }}
+          body: |
+            Auto-generated vocabulary card update.
+            - Word: ${{ steps.parsed.outputs.word_display }}
+            - Folder: src/${{ steps.parsed.outputs.word_slug }}
+          labels: bot,generate
+          delete-branch: true
+          clean: false
+
+      - name: Auto approve PR
+        if: ${{ inputs.auto_approve && steps.cpr.outputs.pull-request-number != '' }}
+        uses: ./.github/actions/auto-approve
+        with:
+          token: ${{ secrets.APPROVER_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          repository: ${{ github.repository }}
+          body: Auto-approved by machine user
+
+      - name: Enable auto-merge
+        if: ${{ inputs.auto_merge && steps.cpr.outputs.pull-request-number != '' }}
+        uses: ./.github/actions/auto-merge
+        with:
+          token: ${{ env.PIPELINE_GH_TOKEN }}
+          pull-request-number: ${{ steps.cpr.outputs.pull-request-number }}
+          repository: ${{ github.repository }}
+          method: squash
+
+      - name: Comment with structured sections
+        if: ${{ inputs.post_comment_structured }}
+        uses: ./.github/actions/comment-structured
+        with:
+          token: ${{ env.PIPELINE_GH_TOKEN }}
+          issue-payload: ${{ inputs.issue_payload }}
+          word: ${{ steps.parsed.outputs.word_display }}
+          slug: ${{ steps.parsed.outputs.word_slug }}
+          head-sha: ${{ steps.cpr.outputs['pull-request-head-sha'] != '' && steps.cpr.outputs['pull-request-head-sha'] || github.sha }}
+
+      - name: Comment legibility report
+        if: ${{ inputs.post_comment_legibility }}
+        uses: ./.github/actions/comment-legibility
+        with:
+          token: ${{ env.PIPELINE_GH_TOKEN }}
+          issue-payload: ${{ inputs.issue_payload }}
+          report-json: ${{ steps.legibility.outputs.report_json }}
+          word: ${{ steps.parsed.outputs.word_display }}
+          slug: ${{ steps.parsed.outputs.word_slug }}
+          head-sha: ${{ steps.cpr.outputs['pull-request-head-sha'] != '' && steps.cpr.outputs['pull-request-head-sha'] || github.sha }}
+
+      - name: Log PR URL
+        if: ${{ steps.cpr.outputs.pull-request-url != '' }}
+        shell: bash
+        run: echo "PR = ${{ steps.cpr.outputs.pull-request-url }}"
